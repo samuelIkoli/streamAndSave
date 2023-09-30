@@ -1,0 +1,1 @@
+Endpoint to upload a video to using Rabbit MQ to send it in streams, upload it using the file system module, and transcribe the audio.
