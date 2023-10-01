@@ -52,10 +52,11 @@ function sendBlobAsBase64(blob) {
 };
 
 const writeTranscript = (transcript, id) => {
-    fs.writeFile('./public/transcript.txt', transcript, (err) => {
+    fs.writeFile(`./public/${id}.txt`, transcript, (err) => {
         if (err) {
             console.log(err);
         }
+        console.log("Successfully Written to File.");
     })
 }
 
@@ -88,10 +89,6 @@ async function transcribeLocalVideo(filePath) {
     return response.results.channels[0].alternatives[0].transcript
 }
 
-// transcribeLocalVideo('./public/2df9b5ba-c793-41d4-931b-f60541e246bc.mp4').then((transcript) =>
-//     console.dir(transcript, { depth: null })
-// )
-
 async function connectQueue() {
     try {
         connection = await amqp.connect("amqp://localhost:5672");
@@ -99,9 +96,13 @@ async function connectQueue() {
         await channel.assertQueue("video_queue")
         channel.consume(QUEUE_NAME, async (message) => {
             if (message !== null) {
-                const content = JSON.parse(message.content.toString());
-                console.log('Received message:', content);
-                // transcript = await transcribeLocalVideo(content);
+                let content = JSON.parse(message.content.toString());
+                let id = content.id;
+                let filePath = content.filePath;
+                console.log('Received message:', content.url);
+                transcript = await transcribeLocalVideo(filePath);
+                console.log(transcript);
+                writeTranscript(transcript, id);
                 // Acknowledge the message once processed
                 channel.ack(message);
             }
@@ -158,22 +159,24 @@ app.get('/final/:id', (req, res) => {
     // Convert blob back to file
     const id = req.params.id;
     const videoURL = `${homeURL}/${id}.mp4`;
-    const trans = {
-        url: `${VIDEO_DIRECTORY}/${id}.mp4`,
+    let trans = {
+        filePath: `${VIDEO_DIRECTORY}/${id}.mp4`,
         id: id
     };
+    trans = JSON.stringify(trans)
     sendData(trans);
     return res.send(videoURL);
 });
 
 
-
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
-
-app.get('/transcript', (req, res) => {
-    res.send(transcript);
+app.get('/transcript/:id', (req, res) => {
+    const id = req.params.id;
+    try {
+        const transcript = fs.readFileSync(`./public/${id}.txt`, 'utf8');
+        res.send(transcript);
+    } catch (error) {
+        return res.status(404).send('Transcript not found');
+    }
 });
 
 app.get("/send", (req, res) => {
@@ -203,6 +206,10 @@ app.post("/makeChunk", upload.single('media'), (req, res) => {
     sendBlobAsBase64(chunk);
     return res.send('madeChunk');
 })
+
+app.get('/', (req, res) => {
+    res.send('Hello World!');
+});
 
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);
