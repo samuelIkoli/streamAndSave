@@ -35,7 +35,7 @@ var receivedBlobs = [];
 
 async function sendData(data) {
     // send data to queue
-    await channel.sendToQueue("test-queue", Buffer.from(JSON.stringify(data)));
+    await channel.sendToQueue("video_queue", Buffer.from(data));
 }
 
 function sendBlobAsBase64(blob) {
@@ -88,9 +88,7 @@ async function transcribeLocalVideo(filePath) {
     return response.results.channels[0].alternatives[0].transcript
 }
 
-// transcribeLocalVideo(videoURL).then((transcript) =>
-//                         console.dir(transcript, { depth: null })
-//                     )
+
 
 async function connectQueue() {
     try {
@@ -100,11 +98,11 @@ async function connectQueue() {
         await channel.assertQueue("video_queue")
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg) {
+                console.log(msg.content.toString())
                 try {
-                    // Generate a unique filename for the video
-                    const fileName = `video_${uuidv4()}.mp4`;
-                    const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
-                    const videoURL = `${homeURL}/${fileName}`;
+                    // transcribeLocalVideo('./public/2df9b5ba-c793-41d4-931b-f60541e246bc.mp4').then((transcript) =>
+                    //     console.dir(transcript, { depth: null })
+                    // )
                 } catch (error) {
                     console.error('Error:', error);
                     // Reject the message on error
@@ -132,19 +130,23 @@ connectQueue();
 
 app.post('/startReceiving', (req, res) => {
     // receivedChunks.length = 0; // Clear the array to start fresh
-    res.sendStatus(200).send('Started receiving blobs.');
+    const id = uuidv4();
+    return res.status(200).send(id);
 });
 
 // Endpoint to continuously receive blobs
-app.post('/receiveChunk', (req, res) => {
+app.post('/receiveChunk/:id', (req, res) => {
     // Check the content type to ensure it's a binary blob
     console.log(req.body);
     const media = req.body.data;
     try {
-        console.log(req.body);
-        // sendBlobtoFile(media);
+        const id = req.params.id;
         const BufferData = Buffer.from(media, 'base64');
-        const fileStream = fs.createWriteStream(`./public/blob${uuidv4()}.webm`, { flags: 'a' });
+        const fileStream = fs.createWriteStream(`./public/${id}.mp4`, { flags: 'a' });
+        console.log('before', BufferData)
+        fileStream.write(BufferData);
+        console.log('after', BufferData)
+        // BufferData = Buffer.from(media, 'base64');
         fileStream.write(BufferData);
         fileStream.end();
         return res.json({ gotit: true });
@@ -155,9 +157,15 @@ app.post('/receiveChunk', (req, res) => {
 });
 
 // Endpoint to aggregate the blobs when done
-app.get('/aggregateChunks/', (req, res) => {
+app.get('/final/:id', (req, res) => {
     // Convert blob back to file
-    const video = fs.writeFileSync('finalvideo.webm', req.body.Buffer);
+    const id = req.params.id;
+    const videoURL = `${homeURL}/${id}.mp4`;
+    const data = {
+        url: `${homeURL}/${id}.mp4`,
+    }
+    sendData(data);
+    return res.send(videoURL);
 });
 
 
