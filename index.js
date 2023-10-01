@@ -179,27 +179,16 @@ app.get('/transcript/:id', (req, res) => {
     }
 });
 
-app.get("/send", (req, res) => {
 
-    // data to be sent
-    let data = {
-        title: "Six of Crows",
-        author: "Leigh Burdugo"
-    }
-    data = JSON.stringify(data);
-    sendData(data);  // pass the data to the function we defined
-    console.log("A message is sent to queue")
-    res.send("Message Sent"); //response to the API request
-})
+// app.post("/sendVideo", upload.single('media'), (req, res) => {
+//     console.log(req.file)
+//     const media = req.file.buffer
+//     sendVideoAsBlob(media);  // pass the data to the function we defined
+//     console.log("A video is sent to queue")
+//     res.send("Video Sent"); //response to the API request
+// })
 
-app.post("/sendVideo", upload.single('media'), (req, res) => {
-    console.log(req.file)
-    const media = req.file.buffer
-    sendVideoAsBlob(media);  // pass the data to the function we defined
-    console.log("A video is sent to queue")
-    res.send("Video Sent"); //response to the API request
-})
-
+///////// test endpoint created to test sending blob as base64
 app.post("/makeChunk", upload.single('media'), (req, res) => {
     console.log(req.file.buffer);
     const chunk = req.file.buffer;
