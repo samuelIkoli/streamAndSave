@@ -10,6 +10,11 @@ const multer = require('multer');
 const storage = multer.memoryStorage()
 const upload = multer({ storage })
 
+const https = require('https')
+const { execSync: exec } = require('child_process')
+const { Deepgram } = require('@deepgram/sdk')
+const ffmpegStatic = require('ffmpeg-static')
+
 const { v4: uuidv4 } = require('uuid');
 
 const QUEUE_NAME = 'video_queue';
@@ -19,6 +24,8 @@ const homeURL = 'http://localhost:3000';
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+const deepgram = new Deepgram('e5ba51d26294551581d2bb227f84dab8f6c241d8')
 
 async function sendData(data) {
     // send data to queue
@@ -58,44 +65,31 @@ const writeVideo = async (videoData) => {
     }
 };
 
-const startRabbitMQConsumer = async () => {
-    try {
-        const connection = await amqp.connect('amqp://localhost:15672');
-        const channel = await connection.createChannel();
-
-        await channel.assertQueue(QUEUE_NAME);
-
-        channel.consume(QUEUE_NAME, async (msg) => {
-            if (msg) {
-                try {
-                    // Generate a unique filename for the video
-                    const fileName = `video_${uuidv4()}.jpg`;
-                    const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
-                    const videoURL = `${homeURL}/${fileName}`;
-                    console.log('Video path:', filePath)
-                    // Create a write stream to save the video
-                    const fileStream = fs.createWriteStream(filePath);
-
-                    // Write the video data to the file
-                    fileStream.write(msg.content);
-                    fileStream.end();
-
-                    console.log('Video saved to:', videoURL);
-
-                    // Acknowledge the message
-                    channel.ack(msg);
-                } catch (error) {
-                    console.error('Error:', error);
-                    // Reject the message on error
-                    channel.reject(msg, false);
-                }
-            }
-        });
-    } catch (error) {
-        console.error('RabbitMQ connection error:', error);
-    }
+async function ffmpeg(command) {
+    return new Promise((resolve, reject) => {
+        exec(`${ffmpegStatic} ${command}`, (err, stderr, stdout) => {
+            if (err) reject(err)
+            resolve(stdout)
+        })
+    })
 };
 
+async function transcribeLocalVideo(filePath) {
+    ffmpeg(`-hide_banner -y -i ${filePath} ${filePath}.wav`)
+
+    const audioFile = {
+        buffer: fs.readFileSync(`${filePath}.wav`),
+        mimetype: 'audio/wav',
+    }
+    const response = await deepgram.transcription.preRecorded(audioFile, {
+        punctuation: true,
+    })
+    return response.results.channels[0].alternatives[0].transcript
+}
+
+transcribeLocalVideo('./public/video_47aa63e0-d8d3-43e9-896f-df7ab68b44b1.mp4').then((transcript) =>
+    console.dir(transcript, { depth: null })
+)
 // Start the RabbitMQ consumer
 // startRabbitMQConsumer();
 
