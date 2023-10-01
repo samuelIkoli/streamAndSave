@@ -50,11 +50,16 @@ function sendBlobAsBase64(blob) {
     fileStream.write(BufferData);
     fileStream.end();
 };
+
+const writeTranscript = (transcript, id) => {
+    fs.writeFile('./public/transcript.txt', transcript, (err) => {
+        if (err) {
+            console.log(err);
+        }
+    })
+}
+
 function sendBlobtoFile(blob) {
-    // const bufferData = Buffer.from(blob, 'utf-8'); // Replace with your buffer data
-    // Convert the buffer to a Base64-encoded string
-    // const base64Encoded = bufferData.toString('base64');
-    // console.log('Base64 Encoded:', base64Encoded);
     const BufferData = Buffer.from(blob, 'base64');
     const fileStream = fs.createWriteStream(`./public/blob${uuidv4()}.mp4`, { flags: 'a' });
     fileStream.write(BufferData);
@@ -68,11 +73,6 @@ async function ffmpeg(command) {
             resolve(stdout)
         })
     })
-};
-async function writeToDisk(nameOfFile, blob) {
-    const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
-    fs.writeFileSync(filePath, blob);
-    return filePath;
 };
 
 async function transcribeLocalVideo(filePath) {
@@ -96,18 +96,12 @@ async function connectQueue() {
     try {
         connection = await amqp.connect("amqp://localhost:5672");
         channel = await connection.createChannel()
-
         await channel.assertQueue("video_queue")
         channel.consume(QUEUE_NAME, async (message) => {
             if (message !== null) {
-                const content = message.content.toString();
+                const content = JSON.parse(message.content.toString());
                 console.log('Received message:', content);
-
-                // Process the message here
-                // transcribeLocalVideo(content).then((transcript) => {
-                //     console.dir(transcript, { depth: null })
-                // })
-                transcript = await transcribeLocalVideo(content);
+                // transcript = await transcribeLocalVideo(content);
                 // Acknowledge the message once processed
                 channel.ack(message);
             }
@@ -164,7 +158,10 @@ app.get('/final/:id', (req, res) => {
     // Convert blob back to file
     const id = req.params.id;
     const videoURL = `${homeURL}/${id}.mp4`;
-    const trans = `${VIDEO_DIRECTORY}/${id}.mp4`
+    const trans = {
+        url: `${VIDEO_DIRECTORY}/${id}.mp4`,
+        id: id
+    };
     sendData(trans);
     return res.send(videoURL);
 });
@@ -182,10 +179,11 @@ app.get('/transcript', (req, res) => {
 app.get("/send", (req, res) => {
 
     // data to be sent
-    const data = {
+    let data = {
         title: "Six of Crows",
         author: "Leigh Burdugo"
     }
+    data = JSON.stringify(data);
     sendData(data);  // pass the data to the function we defined
     console.log("A message is sent to queue")
     res.send("Message Sent"); //response to the API request
