@@ -45,6 +45,7 @@ async function ffmpeg(command) {
 };
 async function writeToDisk(nameOfFile, blob) {
     fs.writeFileSync(`${nameOfFile}`, blob);
+    return
 };
 
 async function transcribeLocalVideo(filePath) {
@@ -128,17 +129,17 @@ app.get('/aggregateBlobs', (req, res) => {
     console.log('Proceeding to save the blob to disk.');
     // Write the blob to disk
     const fileName = `video_${uuidv4()}.mp4`;
+    const videoURL = `${homeURL}/${fileName}`;
     const reader = new FileReader();
-
     reader.addEventListener('load', function () {
         // 'reader.result' contains the decoded binary data as an ArrayBuffer
         const binaryData = reader.result;
-        writeToDisk(fileName, binaryData);
+        const save = writeToDisk(fileName, binaryData);
         console.log('Binary data length:', binaryData.byteLength);
+        res.status(200).send(integratedBlob);
     });
 
     // Read the Blob as binary data
-    reader.readAsArrayBuffer(myBlob);
     res.status(200).send(integratedBlob);
 });
 
@@ -169,4 +170,3 @@ app.post("/sendVideo", upload.single('media'), (req, res) => {
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);
 });
-
