@@ -10,6 +10,8 @@ const multer = require('multer');
 const storage = multer.memoryStorage()
 const upload = multer({ storage })
 const bodyParser = require('body-parser');
+const FileReader = require('filereader')
+
 
 const https = require('https')
 const { execSync: exec } = require('child_process')
@@ -22,10 +24,11 @@ const QUEUE_NAME = 'video_queue';
 const VIDEO_DIRECTORY = './public';
 const homeURL = 'http://localhost:3000';
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(bodyParser.raw({ type: '*/*' }));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: "5000MB", type: 'application/json' }));
 
 const deepgram = new Deepgram('e5ba51d26294551581d2bb227f84dab8f6c241d8')
 var receivedBlobs = [];
@@ -34,6 +37,29 @@ async function sendData(data) {
     // send data to queue
     await channel.sendToQueue("test-queue", Buffer.from(JSON.stringify(data)));
 }
+
+function sendBlobAsBase64(blob) {
+    const bufferData = Buffer.from(blob, 'utf-8'); // Replace with your buffer data
+    // Convert the buffer to a Base64-encoded string
+    const base64Encoded = bufferData.toString('base64');
+    console.log('Base64 Encoded:', base64Encoded);
+    const BufferData = Buffer.from(base64Encoded, 'base64');
+    const fileStream = fs.createWriteStream(`./public/blob${uuidv4()}.mp4`, { flags: 'a' });
+    console.log("buffer is", BufferData);
+    console.log("type of base 64 is", typeof base64Encoded);
+    fileStream.write(BufferData);
+    fileStream.end();
+};
+function sendBlobtoFile(blob) {
+    // const bufferData = Buffer.from(blob, 'utf-8'); // Replace with your buffer data
+    // Convert the buffer to a Base64-encoded string
+    // const base64Encoded = bufferData.toString('base64');
+    // console.log('Base64 Encoded:', base64Encoded);
+    const BufferData = Buffer.from(blob, 'base64');
+    const fileStream = fs.createWriteStream(`./public/blob${uuidv4()}.mp4`, { flags: 'a' });
+    fileStream.write(BufferData);
+    fileStream.end();
+};
 
 async function ffmpeg(command) {
     return new Promise((resolve, reject) => {
@@ -105,44 +131,36 @@ connectQueue();
 // }
 
 app.post('/startReceiving', (req, res) => {
-    receivedBlobs.length = 0; // Clear the array to start fresh
-    res.sendStatus(200);
+    // receivedChunks.length = 0; // Clear the array to start fresh
+    res.sendStatus(200).send('Started receiving blobs.');
 });
 
 // Endpoint to continuously receive blobs
-app.post('/receiveBlob', (req, res) => {
+app.post('/receiveChunk', (req, res) => {
     // Check the content type to ensure it's a binary blob
-    if (req.is('application/octet-stream')) {
-        // Push the received blob to the array
-        receivedBlobs.push(req.body);
-        console.log('Received a blob.');
-        res.sendStatus(200);
-    } else {
-        res.status(400).send('Invalid content type');
+    console.log(req.body);
+    const media = req.body.data;
+    try {
+        console.log(req.body);
+        // sendBlobtoFile(media);
+        const BufferData = Buffer.from(media, 'base64');
+        const fileStream = fs.createWriteStream(`./public/blob${uuidv4()}.webm`, { flags: 'a' });
+        fileStream.write(BufferData);
+        fileStream.end();
+        return res.json({ gotit: true });
+    } catch (error) {
+        console.log(error);
+        return res.json({ gotit: false });
     }
 });
 
 // Endpoint to aggregate the blobs when done
-app.get('/aggregateBlobs', (req, res) => {
-    // Process the received blobs (e.g., combine them or save them)
-    const integratedBlob = Buffer.concat(receivedBlobs);
-    console.log('Integrated all received blobs.');
-    console.log('Proceeding to save the blob to disk.');
-    // Write the blob to disk
-    const fileName = `video_${uuidv4()}.mp4`;
-    const videoURL = `${homeURL}/${fileName}`;
-    const reader = new FileReader();
-    reader.addEventListener('load', function () {
-        // 'reader.result' contains the decoded binary data as an ArrayBuffer
-        const binaryData = reader.result;
-        const save = writeToDisk(fileName, binaryData);
-        console.log('Binary data length:', binaryData.byteLength);
-        res.status(200).send(integratedBlob);
-    });
-
-    // Read the Blob as binary data
-    res.status(200).send(integratedBlob);
+app.get('/aggregateChunks/', (req, res) => {
+    // Convert blob back to file
+    const video = fs.writeFileSync('finalvideo.webm', req.body.Buffer);
 });
+
+
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
@@ -166,6 +184,13 @@ app.post("/sendVideo", upload.single('media'), (req, res) => {
     sendVideoAsBlob(media);  // pass the data to the function we defined
     console.log("A video is sent to queue")
     res.send("Video Sent"); //response to the API request
+})
+
+app.post("/makeChunk", upload.single('media'), (req, res) => {
+    console.log(req.file.buffer);
+    const chunk = req.file.buffer;
+    sendBlobAsBase64(chunk);
+    return res.send('madeChunk');
 })
 
 app.listen(port, () => {
