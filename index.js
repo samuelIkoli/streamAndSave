@@ -44,8 +44,9 @@ async function ffmpeg(command) {
     })
 };
 async function writeToDisk(nameOfFile, blob) {
-    fs.writeFileSync(`${nameOfFile}`, blob);
-    return
+    const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
+    fs.writeFileSync(filePath, blob);
+    return filePath;
 };
 
 async function transcribeLocalVideo(filePath) {
