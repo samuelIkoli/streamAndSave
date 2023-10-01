@@ -10,8 +10,6 @@ const multer = require('multer');
 const storage = multer.memoryStorage()
 const upload = multer({ storage })
 const bodyParser = require('body-parser');
-const FileReader = require('filereader')
-
 
 const https = require('https')
 const { execSync: exec } = require('child_process')
@@ -22,7 +20,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const QUEUE_NAME = 'video_queue';
 const VIDEO_DIRECTORY = './public';
-const homeURL = 'http://localhost:3000';
+const homeURL = 'http://ec2-3-89-134-52.compute-1.amazonaws.com:3000';
 let transcript;
 // app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
@@ -31,7 +29,6 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: "5000MB", type: 'application/json' }));
 
 const deepgram = new Deepgram('e5ba51d26294551581d2bb227f84dab8f6c241d8')
-var receivedBlobs = [];
 
 async function sendData(data) {
     // send data to queue
