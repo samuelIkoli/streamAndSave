@@ -23,7 +23,7 @@ const { v4: uuidv4 } = require('uuid');
 const QUEUE_NAME = 'video_queue';
 const VIDEO_DIRECTORY = './public';
 const homeURL = 'http://localhost:3000';
-
+let transcript;
 // app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -88,7 +88,9 @@ async function transcribeLocalVideo(filePath) {
     return response.results.channels[0].alternatives[0].transcript
 }
 
-
+// transcribeLocalVideo('./public/2df9b5ba-c793-41d4-931b-f60541e246bc.mp4').then((transcript) =>
+//     console.dir(transcript, { depth: null })
+// )
 
 async function connectQueue() {
     try {
@@ -96,19 +98,20 @@ async function connectQueue() {
         channel = await connection.createChannel()
 
         await channel.assertQueue("video_queue")
-        channel.consume(QUEUE_NAME, async (msg) => {
-            if (msg) {
-                console.log(msg.content.toString())
-                try {
-                    // transcribeLocalVideo('./public/2df9b5ba-c793-41d4-931b-f60541e246bc.mp4').then((transcript) =>
-                    //     console.dir(transcript, { depth: null })
-                    // )
-                } catch (error) {
-                    console.error('Error:', error);
-                    // Reject the message on error
-                    channel.reject(msg, false);
-                }
+        channel.consume(QUEUE_NAME, async (message) => {
+            if (message !== null) {
+                const content = message.content.toString();
+                console.log('Received message:', content);
+
+                // Process the message here
+                // transcribeLocalVideo(content).then((transcript) => {
+                //     console.dir(transcript, { depth: null })
+                // })
+                transcript = await transcribeLocalVideo(content);
+                // Acknowledge the message once processed
+                channel.ack(message);
             }
+
         });
     } catch (error) {
         console.log(error)
@@ -161,10 +164,8 @@ app.get('/final/:id', (req, res) => {
     // Convert blob back to file
     const id = req.params.id;
     const videoURL = `${homeURL}/${id}.mp4`;
-    const data = {
-        url: `${homeURL}/${id}.mp4`,
-    }
-    sendData(data);
+    const trans = `${VIDEO_DIRECTORY}/${id}.mp4`
+    sendData(trans);
     return res.send(videoURL);
 });
 
@@ -172,6 +173,10 @@ app.get('/final/:id', (req, res) => {
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
+});
+
+app.get('/transcript', (req, res) => {
+    res.send(transcript);
 });
 
 app.get("/send", (req, res) => {
