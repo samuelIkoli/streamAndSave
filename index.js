@@ -9,6 +9,7 @@ const fs = require('fs');
 const multer = require('multer');
 const storage = multer.memoryStorage()
 const upload = multer({ storage })
+const bodyParser = require('body-parser');
 
 const https = require('https')
 const { execSync: exec } = require('child_process')
@@ -24,46 +25,15 @@ const homeURL = 'http://localhost:3000';
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(bodyParser.raw({ type: '*/*' }));
 
 const deepgram = new Deepgram('e5ba51d26294551581d2bb227f84dab8f6c241d8')
+var receivedBlobs = [];
 
 async function sendData(data) {
     // send data to queue
     await channel.sendToQueue("test-queue", Buffer.from(JSON.stringify(data)));
 }
-
-async function sendVideoAsBlob(media) {
-    try {
-        await channel.assertQueue(QUEUE_NAME);
-
-        channel.sendToQueue('video_queue', media);
-
-        console.log('Video sent successfully.');
-
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
-
-const writeVideo = async (videoData) => {
-    try {
-        // Generate a unique filename for the video
-        const fileName = `video_${uuidv4()}.mp4`;
-        const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
-        const videoURL = `${homeURL}/${fileName}`;
-        console.log('Video path:', filePath)
-        // Create a write stream to save the video
-        const fileStream = fs.createWriteStream(filePath);
-
-        // Write the video data to the file
-        fileStream.write(videoData);
-        fileStream.end();
-
-        console.log('Video saved to:', filePath);
-    } catch (error) {
-        console.error('Error:', error);
-    }
-};
 
 async function ffmpeg(command) {
     return new Promise((resolve, reject) => {
@@ -72,6 +42,9 @@ async function ffmpeg(command) {
             resolve(stdout)
         })
     })
+};
+async function writeToDisk(nameOfFile, blob) {
+    fs.writeFileSync(`${nameOfFile}`, blob);
 };
 
 async function transcribeLocalVideo(filePath) {
@@ -87,13 +60,9 @@ async function transcribeLocalVideo(filePath) {
     return response.results.channels[0].alternatives[0].transcript
 }
 
-transcribeLocalVideo('./public/video_47aa63e0-d8d3-43e9-896f-df7ab68b44b1.mp4').then((transcript) =>
-    console.dir(transcript, { depth: null })
-)
-// Start the RabbitMQ consumer
-// startRabbitMQConsumer();
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
+// transcribeLocalVideo(videoURL).then((transcript) =>
+//                         console.dir(transcript, { depth: null })
+//                     )
 
 async function connectQueue() {
     try {
@@ -108,18 +77,6 @@ async function connectQueue() {
                     const fileName = `video_${uuidv4()}.mp4`;
                     const filePath = `${VIDEO_DIRECTORY}/${fileName}`;
                     const videoURL = `${homeURL}/${fileName}`;
-                    console.log('Video path:', filePath)
-                    // Create a write stream to save the video
-                    const fileStream = fs.createWriteStream(filePath);
-
-                    // Write the video data to the file
-                    fileStream.write(msg.content);
-                    fileStream.end();
-
-                    console.log('Video saved to:', videoURL);
-
-                    // Acknowledge the message
-                    channel.ack(msg);
                 } catch (error) {
                     console.error('Error:', error);
                     // Reject the message on error
@@ -131,9 +88,59 @@ async function connectQueue() {
         console.log(error)
     }
 }
-
 connectQueue();
 
+// async function enQueue (req, res) {
+
+//     // data to be sent
+//     const data = {
+//         title: "Six of Crows",
+//         author: "Leigh Burdugo"
+//     }
+//     sendData(data);  // pass the data to the function we defined
+//     console.log("A message is sent to queue")
+//     res.send("Message Sent"); //response to the API request
+// }
+
+app.post('/startReceiving', (req, res) => {
+    receivedBlobs.length = 0; // Clear the array to start fresh
+    res.sendStatus(200);
+});
+
+// Endpoint to continuously receive blobs
+app.post('/receiveBlob', (req, res) => {
+    // Check the content type to ensure it's a binary blob
+    if (req.is('application/octet-stream')) {
+        // Push the received blob to the array
+        receivedBlobs.push(req.body);
+        console.log('Received a blob.');
+        res.sendStatus(200);
+    } else {
+        res.status(400).send('Invalid content type');
+    }
+});
+
+// Endpoint to aggregate the blobs when done
+app.get('/aggregateBlobs', (req, res) => {
+    // Process the received blobs (e.g., combine them or save them)
+    const integratedBlob = Buffer.concat(receivedBlobs);
+    console.log('Integrated all received blobs.');
+    console.log('Proceeding to save the blob to disk.');
+    // Write the blob to disk
+    const fileName = `video_${uuidv4()}.mp4`;
+    const reader = new FileReader();
+
+    reader.addEventListener('load', function () {
+        // 'reader.result' contains the decoded binary data as an ArrayBuffer
+        const binaryData = reader.result;
+        writeToDisk(fileName, binaryData);
+        console.log('Binary data length:', binaryData.byteLength);
+    });
+
+    // Read the Blob as binary data
+    reader.readAsArrayBuffer(myBlob);
+    res.status(200).send(integratedBlob);
+});
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
@@ -158,37 +165,6 @@ app.post("/sendVideo", upload.single('media'), (req, res) => {
     console.log("A video is sent to queue")
     res.send("Video Sent"); //response to the API request
 })
-
-app.post('/receiveBlobs', (req, res) => {
-    const { sequenceNumber, totalBlobs, blobData } = req.body;
-
-    if (!sequenceNumber || !totalBlobs || !blobData) {
-        return res.status(400).json({ message: 'Invalid Blob data' });
-    }
-
-    receivedBlobs[sequenceNumber] = blobData;
-
-    // Check if all Blobs have been received
-    if (receivedBlobs.length === totalBlobs) {
-        console.log('All Blobs received. Aggregating...');
-
-        // Aggregate all received Blobs
-        const aggregatedBlob = Buffer.concat(receivedBlobs);
-
-        // Save the aggregated Blob to a file
-        fs.writeFile('aggregatedFile.mp4', aggregatedBlob, (err) => {
-            if (err) {
-                console.error('Error saving aggregated file:', err);
-                res.status(500).json({ message: 'Error saving aggregated file' });
-            } else {
-                console.log('Aggregated file saved successfully.');
-                res.status(200).json({ message: 'Aggregated file saved successfully' });
-            }
-        });
-    } else {
-        res.status(200).json({ message: 'Blob received' });
-    }
-});
 
 app.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);
