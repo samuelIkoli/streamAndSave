@@ -6,8 +6,8 @@ This document provides documentation for the API endpoints specified below.
 
 - [Endpoints](#endpoints)
 
-  - [Get User by Id](#start)
-  - [Update User](#receive)
+  - [Instantiate start](#start)
+  - [Send Chunks](#receive)
   - [Get URL](#final)
   - [Get Transcript](#transcript)
 
