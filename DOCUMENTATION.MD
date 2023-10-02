@@ -21,7 +21,7 @@ This document provides documentation for the API endpoints specified below.
 Create a new stream to start recieving.
 
 - **URL**: `/startReceiving`
-- **Method**: `GET`
+- **Method**: `POST`
 - **Request**: None
 - **Response**: An ID to keep track of your video.
 
