@@ -104,7 +104,7 @@ async function connectQueue() {
                     // Acknowledge the message once processed
                     channel.ack(message);
                 } catch (error) {
-                    console.err(error)
+                    console.log(error)
                 }
             }
 
