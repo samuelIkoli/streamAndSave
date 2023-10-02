@@ -97,11 +97,15 @@ async function connectQueue() {
                 let id = content.id;
                 let filePath = content.filePath;
                 console.log('Received message:', content.url);
-                transcript = await transcribeLocalVideo(filePath);
-                console.log(transcript);
-                writeTranscript(transcript, id);
-                // Acknowledge the message once processed
-                channel.ack(message);
+                try {
+                    transcript = await transcribeLocalVideo(filePath);
+                    console.log(transcript);
+                    writeTranscript(transcript, id);
+                    // Acknowledge the message once processed
+                    channel.ack(message);
+                } catch (error) {
+                    console.err(error)
+                }
             }
 
         });
