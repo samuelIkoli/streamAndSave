@@ -142,12 +142,7 @@ app.post('/receiveChunk/:id', (req, res) => {
         const id = req.params.id;
         const BufferData = Buffer.from(media, 'base64');
         const fileStream = fs.createWriteStream(`./public/${id}.mp4`, { flags: 'a' });
-        console.log('before', BufferData)
         fileStream.write(BufferData);
-        console.log('after', BufferData)
-        // BufferData = Buffer.from(media, 'base64');
-        fileStream.write(BufferData);
-        fileStream.end();
         return res.json({ gotit: true });
     } catch (error) {
         console.log(error);
