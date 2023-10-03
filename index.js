@@ -20,7 +20,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const QUEUE_NAME = 'video_queue';
 const VIDEO_DIRECTORY = './public';
-const homeURL = 'http://ec2-3-89-134-52.compute-1.amazonaws.com:3000';
+const homeURL = 'localhost:3000';
 let transcript;
 // app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
